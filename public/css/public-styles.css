@@ -5,14 +5,163 @@
  */
 
 /* =========================================================
+   App wrapper
+   ========================================================= */
+
+.erm-app {
+	position: relative;
+	margin: 24px 0;
+}
+
+/* =========================================================
+   Filter bar
+   ========================================================= */
+
+.erm-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-end;
+	margin-bottom: 24px;
+	padding: 16px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+}
+
+.erm-filters__field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1 1 160px;
+	min-width: 0;
+}
+
+.erm-filters__field--search {
+	flex: 2 1 240px;
+}
+
+.erm-filters__label {
+	font-size: 12px;
+	font-weight: 600;
+	color: #64748b;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+/* Search input wrapper */
+.erm-filters__search-wrap {
+	position: relative;
+}
+
+.erm-filter__search {
+	width: 100%;
+	padding: 8px 36px 8px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font-size: 14px;
+	background: #fff;
+	color: #1e293b;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	box-sizing: border-box;
+}
+
+.erm-filter__search:focus {
+	outline: none;
+	border-color: #2271b1;
+	box-shadow: 0 0 0 3px rgba( 34, 113, 177, 0.15 );
+}
+
+.erm-filters__search-icon {
+	position: absolute;
+	right: 10px;
+	top: 50%;
+	transform: translateY( -50% );
+	font-size: 14px;
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+/* Select inputs */
+.erm-filter__type,
+.erm-filter__difficulty,
+.erm-filter__category {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font-size: 14px;
+	background: #fff;
+	color: #1e293b;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 10px center;
+	padding-right: 30px;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	box-sizing: border-box;
+}
+
+.erm-filter__type:focus,
+.erm-filter__difficulty:focus,
+.erm-filter__category:focus {
+	outline: none;
+	border-color: #2271b1;
+	box-shadow: 0 0 0 3px rgba( 34, 113, 177, 0.15 );
+}
+
+/* =========================================================
+   Loading overlay
+   ========================================================= */
+
+.erm-loading-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	background: rgba( 255, 255, 255, 0.8 );
+	backdrop-filter: blur( 2px );
+	border-radius: 8px;
+	min-height: 120px;
+}
+
+.erm-loading-overlay[hidden] {
+	display: none;
+}
+
+/* CSS spinner */
+.erm-loading-overlay__spinner {
+	display: block;
+	width: 36px;
+	height: 36px;
+	border: 3px solid #e2e8f0;
+	border-top-color: #2271b1;
+	border-radius: 50%;
+	animation: erm-spin 0.7s linear infinite;
+}
+
+@keyframes erm-spin {
+	to { transform: rotate( 360deg ); }
+}
+
+.erm-loading-overlay__text {
+	font-size: 14px;
+	color: #64748b;
+}
+
+/* =========================================================
    Resources grid
    ========================================================= */
 
-.erm-resources-grid {
+.erm-grid {
 	display: grid;
 	grid-template-columns: repeat( auto-fill, minmax( 280px, 1fr ) );
 	gap: 24px;
-	margin: 24px 0;
 }
 
 /* =========================================================
@@ -38,28 +187,28 @@
 	border-color: #2271b1;
 }
 
-/* =========================================================
-   Card media
-   ========================================================= */
-
+/* ── Card media ── */
 .erm-card__media {
 	position: relative;
-	background: #f8fafc;
+	background: #f1f5f9;
 	aspect-ratio: 16 / 9;
 	overflow: hidden;
 }
 
-.erm-card__media img.erm-card__thumbnail {
+.erm-card__thumbnail {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	display: block;
 }
 
-/* =========================================================
-   Badge
-   ========================================================= */
+.erm-card__thumbnail-placeholder {
+	width: 100%;
+	height: 100%;
+	background: linear-gradient( 135deg, #e2e8f0 0%, #cbd5e1 100% );
+}
 
+/* ── Badge ── */
 .erm-card__badge {
 	position: absolute;
 	top: 10px;
@@ -77,10 +226,7 @@
 	color: #fff;
 }
 
-/* =========================================================
-   Card body
-   ========================================================= */
-
+/* ── Card body ── */
 .erm-card__body {
 	padding: 16px;
 	display: flex;
@@ -113,15 +259,11 @@
 	line-height: 1.5;
 }
 
-/* =========================================================
-   Card meta chips
-   ========================================================= */
-
+/* ── Meta chips ── */
 .erm-card__meta {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
-	margin-top: auto;
 }
 
 .erm-card__type,
@@ -132,56 +274,127 @@
 	border-radius: 4px;
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	text-transform: capitalize;
 }
 
 /* Type chips */
-.erm-card__type {
-	background: #f1f5f9;
-	color: #334155;
-	text-transform: capitalize;
-}
-
-.erm-card__type--video    { background: #fef3c7; color: #92400e; }
-.erm-card__type--podcast  { background: #ede9fe; color: #4c1d95; }
-.erm-card__type--pdf      { background: #fee2e2; color: #7f1d1d; }
-.erm-card__type--course   { background: #d1fae5; color: #065f46; }
-.erm-card__type--book     { background: #dbeafe; color: #1e3a5f; }
-.erm-card__type--article  { background: #f0fdf4; color: #14532d; }
+.erm-card__type             { background: #f1f5f9; color: #334155; }
+.erm-card__type--video      { background: #fef3c7; color: #92400e; }
+.erm-card__type--tutorial   { background: #ede9fe; color: #4c1d95; }
+.erm-card__type--ebook      { background: #fee2e2; color: #7f1d1d; }
+.erm-card__type--course     { background: #d1fae5; color: #065f46; }
+.erm-card__type--podcast    { background: #dbeafe; color: #1e3a5f; }
+.erm-card__type--article    { background: #f0fdf4; color: #14532d; }
 
 /* Difficulty chips */
-.erm-card__difficulty {
-	background: #f1f5f9;
-	color: #334155;
-	text-transform: capitalize;
-}
-
+.erm-card__difficulty                 { background: #f1f5f9; color: #334155; }
 .erm-card__difficulty--beginner     { background: #dcfce7; color: #166534; }
 .erm-card__difficulty--intermediate { background: #fef9c3; color: #713f12; }
 .erm-card__difficulty--advanced     { background: #fee2e2; color: #991b1b; }
 
 /* Duration chip */
-.erm-card__duration {
-	background: #f1f5f9;
-	color: #64748b;
+.erm-card__duration { background: #f1f5f9; color: #64748b; }
+
+/* ── CTA button ── */
+.erm-card__cta {
+	display: inline-block;
+	margin-top: auto;
+	padding: 8px 16px;
+	background: #2271b1;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 600;
+	border-radius: 6px;
+	text-decoration: none;
+	text-align: center;
+	transition: background 0.15s ease, transform 0.1s ease;
+	align-self: flex-start;
+}
+
+.erm-card__cta:hover {
+	background: #135e96;
+	color: #fff;
+	transform: translateY( -1px );
+}
+
+.erm-card__cta:active {
+	transform: translateY( 0 );
 }
 
 /* =========================================================
-   No results
+   Pagination
    ========================================================= */
 
-.erm-no-results {
+.erm-pagination {
+	margin-top: 32px;
+}
+
+.erm-pagination__nav {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.erm-pagination__btn {
+	padding: 8px 18px;
+	background: #fff;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: 500;
+	color: #1e293b;
+	cursor: pointer;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.erm-pagination__btn:hover {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+}
+
+.erm-pagination__info {
+	font-size: 14px;
+	color: #64748b;
+	white-space: nowrap;
+}
+
+/* =========================================================
+   State messages
+   ========================================================= */
+
+.erm-no-results,
+.erm-error {
 	color: #64748b;
 	font-style: italic;
-	padding: 16px 0;
+	padding: 24px 0;
+	grid-column: 1 / -1;
+	text-align: center;
+}
+
+.erm-error {
+	color: #b91c1c;
 }
 
 /* =========================================================
    Responsive
    ========================================================= */
 
+@media ( max-width: 768px ) {
+	.erm-filters {
+		flex-direction: column;
+	}
+
+	.erm-filters__field {
+		flex: 1 1 auto;
+		width: 100%;
+	}
+}
+
 @media ( max-width: 600px ) {
-	.erm-resources-grid {
+	.erm-grid {
 		grid-template-columns: 1fr;
 	}
 }

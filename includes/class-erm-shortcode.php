@@ -16,6 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers and renders the [education_resources] shortcode.
  *
  * Usage: [education_resources per_page="6" category="video" difficulty="beginner" featured="true"]
+ *
+ * The PHP renders a filter UI scaffold and empty containers. All data
+ * fetching, card rendering, and pagination are handled client-side via
+ * fetch() calls to the REST API (public/js/public-scripts.js).
  */
 class Shortcode {
 
@@ -52,7 +56,7 @@ class Shortcode {
 		wp_register_script(
 			'erm-public-scripts',
 			ERM_PLUGIN_URL . 'public/js/public-scripts.js',
-			[ 'jquery' ],
+			[],
 			ERM_VERSION,
 			true
 		);
@@ -64,11 +68,14 @@ class Shortcode {
 				'restUrl' => esc_url_raw( rest_url( Rest_Api::NAMESPACE . '/resources' ) ),
 				'nonce'   => wp_create_nonce( 'wp_rest' ),
 				'i18n'    => [
-					'loading'  => __( 'Loading resources…', 'education-resources-manager' ),
-					'no_items' => __( 'No resources found.', 'education-resources-manager' ),
-					'error'    => __( 'Could not load resources.', 'education-resources-manager' ),
-					'prev'     => __( 'Previous', 'education-resources-manager' ),
-					'next'     => __( 'Next', 'education-resources-manager' ),
+					'loading'     => __( 'Loading resources…', 'education-resources-manager' ),
+					'no_items'    => __( 'No resources found.', 'education-resources-manager' ),
+					'error'       => __( 'Could not load resources. Please try again.', 'education-resources-manager' ),
+					'prev'        => __( 'Previous', 'education-resources-manager' ),
+					'next'        => __( 'Next', 'education-resources-manager' ),
+					'ver_recurso' => __( 'Ver recurso', 'education-resources-manager' ),
+					'featured'    => __( 'Featured', 'education-resources-manager' ),
+					'page_of'     => __( 'of', 'education-resources-manager' ),
 				],
 			]
 		);
@@ -76,6 +83,10 @@ class Shortcode {
 
 	/**
 	 * Render the shortcode output.
+	 *
+	 * Outputs a filter UI scaffold. JavaScript (public-scripts.js) fetches
+	 * data from the REST API and populates the .erm-grid and .erm-pagination
+	 * containers without page reload.
 	 *
 	 * @param array<string, string>|string $atts    Shortcode attributes.
 	 * @param string|null                  $content Enclosed content (unused).
@@ -86,7 +97,6 @@ class Shortcode {
 			[
 				'per_page'   => get_option( 'erm_resources_per_page', 12 ),
 				'category'   => '',
-				'tag'        => '',
 				'difficulty' => '',
 				'featured'   => '',
 				'orderby'    => 'date',
@@ -96,136 +106,130 @@ class Shortcode {
 			self::TAG
 		);
 
-		// Enqueue assets only when shortcode is used.
+		// Enqueue assets only when shortcode is used on this page.
 		wp_enqueue_style( 'erm-public-styles' );
 		wp_enqueue_script( 'erm-public-scripts' );
 
-		$posts = $this->query_resources( $atts );
+		// Fetch taxonomy terms server-side for the category select.
+		$categories = get_terms(
+			[
+				'taxonomy'   => Taxonomy::CATEGORY,
+				'hide_empty' => false,
+				'orderby'    => 'name',
+				'order'      => 'ASC',
+			]
+		);
 
-		if ( empty( $posts ) ) {
-			return '<p class="erm-no-results">' . esc_html__( 'No resources found.', 'education-resources-manager' ) . '</p>';
-		}
+		// Sanitise shortcode attrs before emitting as data-attributes.
+		$per_page   = absint( $atts['per_page'] );
+		$category   = sanitize_text_field( $atts['category'] );
+		$difficulty = sanitize_text_field( $atts['difficulty'] );
+		$featured   = sanitize_text_field( $atts['featured'] );
+		$orderby    = sanitize_text_field( $atts['orderby'] );
+		$order      = 'ASC' === strtoupper( $atts['order'] ) ? 'ASC' : 'DESC';
 
-		$db  = new Database();
-		$out = '<div class="erm-resources-grid">';
+		$out  = sprintf(
+			'<div class="erm-app" data-per-page="%d" data-category="%s" data-difficulty="%s" data-featured="%s" data-orderby="%s" data-order="%s">',
+			$per_page,
+			esc_attr( $category ),
+			esc_attr( $difficulty ),
+			esc_attr( $featured ),
+			esc_attr( $orderby ),
+			esc_attr( $order )
+		);
 
-		foreach ( $posts as $post ) {
-			$meta = $db->get_resource_meta( $post->ID );
-			$out .= $this->render_resource_card( $post, $meta );
-		}
+		// ── Filter bar ────────────────────────────────────────────────────────
+		$out .= '<div class="erm-filters" role="search" aria-label="' . esc_attr__( 'Filter resources', 'education-resources-manager' ) . '">';
 
+		// Search input.
+		$out .= '<div class="erm-filters__field erm-filters__field--search">';
+		$out .= '<label class="erm-filters__label" for="erm-search-' . esc_attr( (string) $per_page ) . '">' . esc_html__( 'Search', 'education-resources-manager' ) . '</label>';
+		$out .= '<div class="erm-filters__search-wrap">';
+		$out .= '<input type="search" id="erm-search-' . esc_attr( (string) $per_page ) . '" class="erm-filter__search" placeholder="' . esc_attr__( 'Search resources…', 'education-resources-manager' ) . '" autocomplete="off" />';
+		$out .= '<span class="erm-filters__search-icon" aria-hidden="true">&#128269;</span>';
 		$out .= '</div>';
+		$out .= '</div>';
+
+		// Resource type select.
+		$out .= '<div class="erm-filters__field">';
+		$out .= '<label class="erm-filters__label" for="erm-type">' . esc_html__( 'Type', 'education-resources-manager' ) . '</label>';
+		$out .= '<select id="erm-type" class="erm-filter__type">';
+		$out .= '<option value="">' . esc_html__( 'All types', 'education-resources-manager' ) . '</option>';
+		foreach ( $this->get_filter_resource_types() as $value => $label ) {
+			$out .= '<option value="' . esc_attr( $value ) . '">' . esc_html( $label ) . '</option>';
+		}
+		$out .= '</select>';
+		$out .= '</div>';
+
+		// Difficulty select.
+		$out .= '<div class="erm-filters__field">';
+		$out .= '<label class="erm-filters__label" for="erm-difficulty">' . esc_html__( 'Difficulty', 'education-resources-manager' ) . '</label>';
+		$out .= '<select id="erm-difficulty" class="erm-filter__difficulty">';
+		$out .= '<option value="">' . esc_html__( 'All levels', 'education-resources-manager' ) . '</option>';
+		foreach ( $this->get_filter_difficulty_levels() as $value => $label ) {
+			$selected = selected( $difficulty, $value, false );
+			$out     .= '<option value="' . esc_attr( $value ) . '"' . $selected . '>' . esc_html( $label ) . '</option>';
+		}
+		$out .= '</select>';
+		$out .= '</div>';
+
+		// Category select — populated from erm_category taxonomy.
+		$out .= '<div class="erm-filters__field">';
+		$out .= '<label class="erm-filters__label" for="erm-category">' . esc_html__( 'Category', 'education-resources-manager' ) . '</label>';
+		$out .= '<select id="erm-category" class="erm-filter__category">';
+		$out .= '<option value="">' . esc_html__( 'All categories', 'education-resources-manager' ) . '</option>';
+		if ( ! is_wp_error( $categories ) && ! empty( $categories ) ) {
+			foreach ( $categories as $term ) {
+				$selected = selected( $category, $term->slug, false );
+				$out     .= '<option value="' . esc_attr( $term->slug ) . '"' . $selected . '>' . esc_html( $term->name ) . '</option>';
+			}
+		}
+		$out .= '</select>';
+		$out .= '</div>';
+
+		$out .= '</div>'; // .erm-filters
+
+		// ── Loading overlay ───────────────────────────────────────────────────
+		$out .= '<div class="erm-loading-overlay" hidden aria-hidden="true">';
+		$out .= '<span class="erm-loading-overlay__spinner"></span>';
+		$out .= '<span class="erm-loading-overlay__text">' . esc_html__( 'Loading resources…', 'education-resources-manager' ) . '</span>';
+		$out .= '</div>';
+
+		// ── Grid container — JS populates this ────────────────────────────────
+		$out .= '<div class="erm-grid" aria-live="polite" aria-busy="true"></div>';
+
+		// ── Pagination container — JS populates this ──────────────────────────
+		$out .= '<div class="erm-pagination"></div>';
+
+		$out .= '</div>'; // .erm-app
 
 		return $out;
 	}
 
 	/**
-	 * Run a WP_Query for resources based on shortcode attributes.
+	 * Resource type options shown in the front-end filter select.
 	 *
-	 * @param array<string, string> $atts Shortcode attributes.
-	 * @return \WP_Post[]
+	 * @return array<string, string>
 	 */
-	private function query_resources( array $atts ): array {
-		$args = [
-			'post_type'      => Post_Type::POST_TYPE,
-			'post_status'    => 'publish',
-			'posts_per_page' => absint( $atts['per_page'] ),
-			'orderby'        => sanitize_text_field( $atts['orderby'] ),
-			'order'          => 'ASC' === strtoupper( $atts['order'] ) ? 'ASC' : 'DESC',
+	private function get_filter_resource_types(): array {
+		return [
+			'course'   => __( 'Course', 'education-resources-manager' ),
+			'tutorial' => __( 'Tutorial', 'education-resources-manager' ),
+			'ebook'    => __( 'eBook', 'education-resources-manager' ),
+			'video'    => __( 'Video', 'education-resources-manager' ),
 		];
-
-		$tax_query = [];
-
-		if ( ! empty( $atts['category'] ) ) {
-			$tax_query[] = [
-				'taxonomy' => Taxonomy::CATEGORY,
-				'field'    => 'slug',
-				'terms'    => sanitize_text_field( $atts['category'] ),
-			];
-		}
-
-		if ( ! empty( $atts['tag'] ) ) {
-			$tax_query[] = [
-				'taxonomy' => Taxonomy::TAG,
-				'field'    => 'slug',
-				'terms'    => sanitize_text_field( $atts['tag'] ),
-			];
-		}
-
-		if ( $tax_query ) {
-			$args['tax_query'] = $tax_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
-		}
-
-		if ( ! empty( $atts['difficulty'] ) ) {
-			$args['meta_query'] = [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
-				[
-					'key'     => '_erm_difficulty',
-					'value'   => sanitize_text_field( $atts['difficulty'] ),
-					'compare' => '=',
-				],
-			];
-		}
-
-		return get_posts( $args );
 	}
 
 	/**
-	 * Render a single resource card.
+	 * Difficulty level options shown in the front-end filter select.
 	 *
-	 * @param \WP_Post    $post Post object.
-	 * @param object|null $meta Database row.
-	 * @return string HTML for one card.
+	 * @return array<string, string>
 	 */
-	private function render_resource_card( \WP_Post $post, ?object $meta ): string {
-		$thumbnail   = get_the_post_thumbnail( $post->ID, 'medium', [ 'class' => 'erm-card__thumbnail' ] );
-		$title       = get_the_title( $post );
-		$excerpt     = get_the_excerpt( $post );
-		$permalink   = get_permalink( $post );
-		$type        = $meta->resource_type ?? '';
-		$difficulty  = $meta->difficulty_level ?? '';
-		$duration    = $meta->duration_minutes ? (int) $meta->duration_minutes : 0;
-		$is_featured = ! empty( $meta->is_featured );
-
-		$badge = '';
-		if ( $is_featured ) {
-			$badge = '<span class="erm-card__badge erm-card__badge--featured">' . esc_html__( 'Featured', 'education-resources-manager' ) . '</span>';
-		}
-
-		$duration_text = $duration
-			? sprintf(
-				/* translators: %d: number of minutes */
-				_n( '%d min', '%d mins', $duration, 'education-resources-manager' ),
-				$duration
-			)
-			: '';
-
-		$card  = '<article class="erm-card' . ( $is_featured ? ' erm-card--featured' : '' ) . '">';
-		$card .= '<div class="erm-card__media">' . $thumbnail . $badge . '</div>';
-		$card .= '<div class="erm-card__body">';
-		$card .= '<h3 class="erm-card__title"><a href="' . esc_url( $permalink ) . '">' . esc_html( $title ) . '</a></h3>';
-
-		if ( $excerpt ) {
-			$card .= '<p class="erm-card__excerpt">' . esc_html( wp_trim_words( $excerpt, 20 ) ) . '</p>';
-		}
-
-		$card .= '<div class="erm-card__meta">';
-
-		if ( $type ) {
-			$card .= '<span class="erm-card__type erm-card__type--' . esc_attr( $type ) . '">' . esc_html( $type ) . '</span>';
-		}
-
-		if ( $difficulty ) {
-			$card .= '<span class="erm-card__difficulty erm-card__difficulty--' . esc_attr( $difficulty ) . '">' . esc_html( $difficulty ) . '</span>';
-		}
-
-		if ( $duration_text ) {
-			$card .= '<span class="erm-card__duration">' . esc_html( $duration_text ) . '</span>';
-		}
-
-		$card .= '</div>'; // .erm-card__meta
-		$card .= '</div>'; // .erm-card__body
-		$card .= '</article>';
-
-		return $card;
+	private function get_filter_difficulty_levels(): array {
+		return [
+			'beginner'     => __( 'Beginner', 'education-resources-manager' ),
+			'intermediate' => __( 'Intermediate', 'education-resources-manager' ),
+			'advanced'     => __( 'Advanced', 'education-resources-manager' ),
+		];
 	}
 }

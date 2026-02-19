@@ -25,6 +25,13 @@ class Rest_Api {
 	const NAMESPACE = 'erm/v1';
 
 	/**
+	 * Post meta key used to store view counts.
+	 *
+	 * @var string
+	 */
+	const VIEW_COUNT_META = '_erm_view_count';
+
+	/**
 	 * Register REST routes.
 	 *
 	 * @return void
@@ -88,6 +95,26 @@ class Rest_Api {
 
 		register_rest_route(
 			self::NAMESPACE,
+			'/resources/(?P<id>[\d]+)/track',
+			[
+				[
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => [ $this, 'record_view' ],
+					'permission_callback' => '__return_true',
+					'args'                => [
+						'id' => [
+							'required'          => true,
+							'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0,
+							'sanitize_callback' => 'absint',
+							'description'       => __( 'Post ID of the resource to track.', 'education-resources-manager' ),
+						],
+					],
+				],
+			]
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			'/stats',
 			[
 				[
@@ -106,21 +133,28 @@ class Rest_Api {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_resources( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		$per_page  = $request->get_param( 'per_page' ) ?? get_option( 'erm_resources_per_page', 12 );
-		$page      = $request->get_param( 'page' ) ?? 1;
-		$type      = $request->get_param( 'resource_type' ) ?? '';
-		$level     = $request->get_param( 'difficulty_level' ) ?? '';
-		$featured  = $request->get_param( 'featured' );
-		$category  = $request->get_param( 'category' ) ?? '';
-		$orderby   = $request->get_param( 'orderby' ) ?? 'created_at';
-		$order     = $request->get_param( 'order' ) ?? 'DESC';
+		$per_page = $request->get_param( 'per_page' ) ?? get_option( 'erm_resources_per_page', 12 );
+		$page     = $request->get_param( 'page' ) ?? 1;
+		$type     = $request->get_param( 'resource_type' ) ?? '';
+		$level    = $request->get_param( 'difficulty_level' ) ?? '';
+		$featured = $request->get_param( 'featured' );
+		$category = $request->get_param( 'category' ) ?? '';
+		$search   = $request->get_param( 'search' ) ?? '';
+		$orderby  = $request->get_param( 'orderby' ) ?? 'date';
+		$order    = $request->get_param( 'order' ) ?? 'DESC';
 
 		$query_args = [
 			'post_type'      => Post_Type::POST_TYPE,
 			'post_status'    => 'publish',
 			'posts_per_page' => (int) $per_page,
 			'paged'          => (int) $page,
+			'orderby'        => sanitize_text_field( $orderby ),
+			'order'          => 'ASC' === strtoupper( $order ) ? 'ASC' : 'DESC',
 		];
+
+		if ( ! empty( $search ) ) {
+			$query_args['s'] = sanitize_text_field( $search );
+		}
 
 		if ( ! empty( $category ) ) {
 			$query_args['tax_query'] = [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
@@ -138,14 +172,28 @@ class Rest_Api {
 		$data = [];
 		foreach ( $posts as $post ) {
 			$meta   = $db->get_resource_meta( $post->ID );
+
+			// Apply resource_type and difficulty_level filters post-query
+			// since they are stored in the custom table, not wp_posts.
+			if ( ! empty( $type ) && ( $meta->resource_type ?? '' ) !== $type ) {
+				continue;
+			}
+			if ( ! empty( $level ) && ( $meta->difficulty_level ?? '' ) !== $level ) {
+				continue;
+			}
+			if ( null !== $featured && (bool) ( $meta->is_featured ?? 0 ) !== (bool) $featured ) {
+				continue;
+			}
+
 			$data[] = $this->prepare_resource_response( $post, $meta );
 		}
 
-		$total = (int) ( new \WP_Query( array_merge( $query_args, [ 'posts_per_page' => -1, 'fields' => 'ids' ] ) ) )->found_posts;
+		$total        = count( $data );
+		$per_page_int = max( 1, (int) $per_page );
 
 		$response = rest_ensure_response( $data );
 		$response->header( 'X-WP-Total', $total );
-		$response->header( 'X-WP-TotalPages', (int) ceil( $total / (int) $per_page ) );
+		$response->header( 'X-WP-TotalPages', (int) ceil( $total / $per_page_int ) );
 
 		return $response;
 	}
@@ -203,6 +251,34 @@ class Rest_Api {
 	}
 
 	/**
+	 * POST /erm/v1/resources/:id/track — increment view counter.
+	 *
+	 * View counts are stored as post meta (_erm_view_count) to avoid
+	 * a schema migration on the custom table.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function record_view( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$post_id = $request->get_param( 'id' );
+		$post    = get_post( $post_id );
+
+		if ( ! $post || Post_Type::POST_TYPE !== $post->post_type ) {
+			return new \WP_Error(
+				'erm_resource_not_found',
+				__( 'Resource not found.', 'education-resources-manager' ),
+				[ 'status' => 404 ]
+			);
+		}
+
+		$current = (int) get_post_meta( $post_id, self::VIEW_COUNT_META, true );
+		$updated = $current + 1;
+		update_post_meta( $post_id, self::VIEW_COUNT_META, $updated );
+
+		return rest_ensure_response( [ 'recorded' => true, 'views' => $updated ] );
+	}
+
+	/**
 	 * GET /erm/v1/stats — return aggregate stats (admin only).
 	 *
 	 * @param \WP_REST_Request $request Request object.
@@ -241,6 +317,7 @@ class Rest_Api {
 		$thumbnail_url = get_the_post_thumbnail_url( $post->ID, 'medium' ) ?: null;
 		$categories    = wp_get_post_terms( $post->ID, Taxonomy::CATEGORY, [ 'fields' => 'all' ] );
 		$tags          = wp_get_post_terms( $post->ID, Taxonomy::TAG, [ 'fields' => 'all' ] );
+		$view_count    = (int) get_post_meta( $post->ID, self::VIEW_COUNT_META, true );
 
 		return [
 			'id'               => $post->ID,
@@ -255,6 +332,7 @@ class Rest_Api {
 			'difficulty_level' => $meta->difficulty_level ?? null,
 			'duration_minutes' => $meta->duration_minutes ? (int) $meta->duration_minutes : null,
 			'download_count'   => $meta->download_count ? (int) $meta->download_count : 0,
+			'view_count'       => $view_count,
 			'is_featured'      => ! empty( $meta->is_featured ),
 			'categories'       => is_array( $categories ) ? array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $categories ) : [],
 			'tags'             => is_array( $tags ) ? array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $tags ) : [],
@@ -280,6 +358,11 @@ class Rest_Api {
 				'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0 && $v <= 100,
 				'description'       => __( 'Items per page (max 100).', 'education-resources-manager' ),
 			],
+			'search'           => [
+				'default'           => '',
+				'sanitize_callback' => 'sanitize_text_field',
+				'description'       => __( 'Search resources by keyword.', 'education-resources-manager' ),
+			],
 			'resource_type'    => [
 				'default'           => '',
 				'sanitize_callback' => 'sanitize_text_field',
@@ -301,9 +384,9 @@ class Rest_Api {
 				'description'       => __( 'Filter to featured resources only.', 'education-resources-manager' ),
 			],
 			'orderby'          => [
-				'default'           => 'created_at',
+				'default'           => 'date',
 				'sanitize_callback' => 'sanitize_text_field',
-				'enum'              => [ 'created_at', 'download_count', 'duration_minutes', 'id' ],
+				'enum'              => [ 'date', 'title', 'modified', 'id' ],
 				'description'       => __( 'Field to order results by.', 'education-resources-manager' ),
 			],
 			'order'            => [
