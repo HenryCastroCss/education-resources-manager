@@ -24,12 +24,6 @@ class Rest_Api {
 	 */
 	const NAMESPACE = 'erm/v1';
 
-	/**
-	 * Post meta key used to store view counts.
-	 *
-	 * @var string
-	 */
-	const VIEW_COUNT_META = '_erm_view_count';
 
 	/**
 	 * Register REST routes.
@@ -251,10 +245,10 @@ class Rest_Api {
 	}
 
 	/**
-	 * POST /erm/v1/resources/:id/track — increment view counter.
+	 * POST /erm/v1/resources/:id/track — log a view event.
 	 *
-	 * View counts are stored as post meta (_erm_view_count) to avoid
-	 * a schema migration on the custom table.
+	 * Inserts a row into wp_erm_tracking via Database::log_action().
+	 * The visitor IP is anonymised before storage.
 	 *
 	 * @param \WP_REST_Request $request Request object.
 	 * @return \WP_REST_Response|\WP_Error
@@ -271,11 +265,10 @@ class Rest_Api {
 			);
 		}
 
-		$current = (int) get_post_meta( $post_id, self::VIEW_COUNT_META, true );
-		$updated = $current + 1;
-		update_post_meta( $post_id, self::VIEW_COUNT_META, $updated );
+		$db     = new Database();
+		$row_id = $db->log_action( $post_id, 'view' );
 
-		return rest_ensure_response( [ 'recorded' => true, 'views' => $updated ] );
+		return rest_ensure_response( [ 'recorded' => false !== $row_id ] );
 	}
 
 	/**
@@ -317,7 +310,6 @@ class Rest_Api {
 		$thumbnail_url = get_the_post_thumbnail_url( $post->ID, 'medium' ) ?: null;
 		$categories    = wp_get_post_terms( $post->ID, Taxonomy::CATEGORY, [ 'fields' => 'all' ] );
 		$tags          = wp_get_post_terms( $post->ID, Taxonomy::TAG, [ 'fields' => 'all' ] );
-		$view_count    = (int) get_post_meta( $post->ID, self::VIEW_COUNT_META, true );
 
 		return [
 			'id'               => $post->ID,
@@ -332,7 +324,6 @@ class Rest_Api {
 			'difficulty_level' => $meta->difficulty_level ?? null,
 			'duration_minutes' => $meta->duration_minutes ? (int) $meta->duration_minutes : null,
 			'download_count'   => $meta->download_count ? (int) $meta->download_count : 0,
-			'view_count'       => $view_count,
 			'is_featured'      => ! empty( $meta->is_featured ),
 			'categories'       => is_array( $categories ) ? array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $categories ) : [],
 			'tags'             => is_array( $tags ) ? array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $tags ) : [],

@@ -36,6 +36,7 @@ define( 'ERM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ERM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ERM_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'ERM_TABLE_RESOURCES', 'erm_resource_meta' );
+define( 'ERM_TABLE_TRACKING', 'erm_tracking' );
 
 // Autoload classes.
 spl_autoload_register(

@@ -50,10 +50,12 @@ class Activator {
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-		$charset_collate = $wpdb->get_charset_collate();
-		$table_name      = $wpdb->prefix . ERM_TABLE_RESOURCES;
+		$charset_collate  = $wpdb->get_charset_collate();
+		$resources_table  = $wpdb->prefix . ERM_TABLE_RESOURCES;
+		$tracking_table   = $wpdb->prefix . ERM_TABLE_TRACKING;
 
-		$sql = "CREATE TABLE {$table_name} (
+		// Table 1: resource metadata.
+		$sql_resources = "CREATE TABLE {$resources_table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			post_id bigint(20) unsigned NOT NULL,
 			resource_url varchar(2083) NOT NULL DEFAULT '',
@@ -72,7 +74,22 @@ class Activator {
 			KEY is_featured (is_featured)
 		) {$charset_collate};";
 
-		dbDelta( $sql );
+		// Table 2: view and download event log.
+		$sql_tracking = "CREATE TABLE {$tracking_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			resource_id bigint(20) unsigned NOT NULL,
+			user_id bigint(20) unsigned DEFAULT NULL,
+			action_date datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			action_type varchar(20) NOT NULL DEFAULT 'view',
+			user_ip varchar(45) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY resource_id (resource_id),
+			KEY action_date (action_date),
+			KEY action_type (action_type)
+		) {$charset_collate};";
+
+		dbDelta( $sql_resources );
+		dbDelta( $sql_tracking );
 	}
 
 	/**

@@ -18,18 +18,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Database {
 
 	/**
-	 * Full table name with WordPress prefix.
+	 * Resource meta table name with WordPress prefix.
 	 *
 	 * @var string
 	 */
 	private string $table;
 
 	/**
+	 * Tracking event log table name with WordPress prefix.
+	 *
+	 * @var string
+	 */
+	private string $tracking_table;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
 		global $wpdb;
-		$this->table = $wpdb->prefix . ERM_TABLE_RESOURCES;
+		$this->table          = $wpdb->prefix . ERM_TABLE_RESOURCES;
+		$this->tracking_table = $wpdb->prefix . ERM_TABLE_TRACKING;
 	}
 
 	/**
@@ -226,6 +234,69 @@ class Database {
 		}
 
 		return (int) $count;
+	}
+
+	/**
+	 * Insert a view or download event into the tracking log.
+	 *
+	 * The visitor IP is anonymised before storage (last IPv4 octet or last
+	 * 80 bits of IPv6 are zeroed) to align with GDPR minimisation principles.
+	 *
+	 * @param int    $resource_id WordPress post ID of the resource.
+	 * @param string $action_type Event type — 'view' or 'download'.
+	 * @return int|false Inserted row ID, or false on failure.
+	 */
+	public function log_action( int $resource_id, string $action_type ): int|false {
+		global $wpdb;
+
+		$allowed_types = [ 'view', 'download' ];
+		if ( ! in_array( $action_type, $allowed_types, true ) ) {
+			return false;
+		}
+
+		$user_id = get_current_user_id(); // 0 for logged-out visitors.
+		$raw_ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$result = $wpdb->insert(
+			$this->tracking_table,
+			[
+				'resource_id' => $resource_id,
+				'user_id'     => $user_id > 0 ? $user_id : null,
+				'action_date' => current_time( 'mysql', true ), // UTC.
+				'action_type' => $action_type,
+				'user_ip'     => $this->anonymize_ip( $raw_ip ),
+			],
+			[ '%d', '%d', '%s', '%s', '%s' ]
+		);
+
+		return $result ? $wpdb->insert_id : false;
+	}
+
+	/**
+	 * Anonymise an IP address by zeroing the host portion.
+	 *
+	 * - IPv4: last octet set to 0  (e.g. 192.168.1.55  → 192.168.1.0)
+	 * - IPv6: last 80 bits zeroed  (keeps the /48 network prefix)
+	 *
+	 * @param string $ip Raw IP address string.
+	 * @return string Anonymised IP, or empty string if invalid.
+	 */
+	private function anonymize_ip( string $ip ): string {
+		if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+			$binary = inet_pton( $ip );
+			$mask   = inet_pton( '255.255.255.0' );
+			return inet_ntop( $binary & $mask );
+		}
+
+		if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 ) ) {
+			$binary = inet_pton( $ip );
+			// Keep first 6 bytes (/48 prefix), zero remaining 10 bytes.
+			$mask = str_repeat( "\xff", 6 ) . str_repeat( "\x00", 10 );
+			return inet_ntop( $binary & $mask );
+		}
+
+		return '';
 	}
 
 	/**
