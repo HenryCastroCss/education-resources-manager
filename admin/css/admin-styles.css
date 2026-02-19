@@ -1,0 +1,199 @@
+/**
+ * Education Resources Manager — Admin Styles
+ *
+ * @package GlobalAuthenticity\EducationManager
+ */
+
+/* =========================================================
+   Settings wrap
+   ========================================================= */
+
+.erm-settings-wrap h1 .dashicons {
+	vertical-align: middle;
+	margin-right: 6px;
+	font-size: 26px;
+	width: 26px;
+	height: 26px;
+}
+
+/* =========================================================
+   Stats row
+   ========================================================= */
+
+.erm-stats-row {
+	display: flex;
+	gap: 16px;
+	margin: 20px 0 24px;
+	flex-wrap: wrap;
+}
+
+.erm-stat-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-top: 4px solid #2271b1;
+	border-radius: 4px;
+	padding: 16px 20px;
+	min-width: 160px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.erm-stat-card__number {
+	font-size: 28px;
+	font-weight: 600;
+	color: #1d2327;
+	line-height: 1;
+}
+
+.erm-stat-card__label {
+	font-size: 13px;
+	color: #646970;
+}
+
+/* =========================================================
+   Settings layout
+   ========================================================= */
+
+.erm-settings-container {
+	display: flex;
+	gap: 24px;
+	align-items: flex-start;
+	flex-wrap: wrap;
+}
+
+.erm-settings-main {
+	flex: 1 1 500px;
+	min-width: 0;
+}
+
+.erm-settings-sidebar {
+	flex: 0 0 260px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+/* =========================================================
+   Settings sections
+   ========================================================= */
+
+.erm-settings-section {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 20px 4px;
+	margin-bottom: 16px;
+}
+
+.erm-settings-section h2 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 0 0 12px;
+	padding: 0;
+	color: #1d2327;
+	border-bottom: 1px solid #f0f0f1;
+	padding-bottom: 10px;
+}
+
+/* =========================================================
+   Save status
+   ========================================================= */
+
+.erm-save-status {
+	display: inline-block;
+	margin-left: 12px;
+	font-style: italic;
+	color: #3c763d;
+	vertical-align: middle;
+}
+
+.erm-save-status.is-error {
+	color: #c0392b;
+}
+
+/* =========================================================
+   Sidebar cards
+   ========================================================= */
+
+.erm-sidebar-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px;
+}
+
+.erm-sidebar-card h3 {
+	font-size: 13px;
+	font-weight: 600;
+	margin: 0 0 10px;
+	padding: 0 0 8px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.erm-sidebar-card ul {
+	margin: 0;
+	padding: 0;
+	list-style: disc;
+	padding-left: 18px;
+}
+
+.erm-sidebar-card ul li {
+	margin-bottom: 6px;
+	font-size: 13px;
+}
+
+.erm-shortcode-example {
+	display: block;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	padding: 8px 10px;
+	font-size: 13px;
+	margin-bottom: 10px;
+	word-break: break-all;
+}
+
+.erm-attr-list {
+	margin: 6px 0 0 !important;
+	padding-left: 14px !important;
+}
+
+.erm-attr-list li {
+	margin-bottom: 4px !important;
+}
+
+.erm-attr-list code {
+	font-size: 12px;
+	background: #f6f7f7;
+	padding: 1px 4px;
+	border-radius: 2px;
+}
+
+/* =========================================================
+   Meta box table
+   ========================================================= */
+
+.erm-meta-table .form-table th {
+	width: 180px;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 782px) {
+	.erm-stats-row {
+		flex-direction: column;
+	}
+
+	.erm-settings-container {
+		flex-direction: column;
+	}
+
+	.erm-settings-sidebar {
+		flex: 1 1 auto;
+		width: 100%;
+	}
+}
