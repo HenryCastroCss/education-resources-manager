@@ -29,6 +29,9 @@ wp-config.php
 # Uploads
 /wp-content/uploads/
 
+# Claude Code
+.claude/
+
 # Log files
 *.log
 
