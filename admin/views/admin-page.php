@@ -12,41 +12,124 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$per_page     = (int) get_option( 'erm_resources_per_page', 12 );
-$enable_api   = (bool) get_option( 'erm_enable_rest_api', true );
-$difficulty   = get_option( 'erm_default_difficulty', 'beginner' );
-$dl_count     = (bool) get_option( 'erm_enable_download_count', true );
-$db           = new Database();
-$total        = $db->count_resources();
-$post_counts  = wp_count_posts( Post_Type::POST_TYPE );
-$published    = $post_counts->publish ?? 0;
+// ── Data queries ───────────────────────────────────────────────────────────────
+
+$per_page    = (int) get_option( 'erm_resources_per_page', 12 );
+$enable_api  = (bool) get_option( 'erm_enable_rest_api', true );
+$difficulty  = get_option( 'erm_default_difficulty', 'beginner' );
+$dl_count    = (bool) get_option( 'erm_enable_download_count', true );
+
+$db          = new Database();
+$post_counts = wp_count_posts( Post_Type::POST_TYPE );
+$published   = (int) ( $post_counts->publish ?? 0 );
+$tracking    = $db->get_tracking_summary();
+$top_viewed  = $db->get_top_viewed_resources( 5 );
+$monthly     = $db->get_resources_per_month( 6 );
+
+// Pre-compute bar chart dimensions.
+$chart_max_h = 120; // px — tallest possible bar.
+$count_max   = max( array_values( $monthly ) ?: [ 1 ] );
+$count_max   = $count_max > 0 ? $count_max : 1; // avoid division by zero.
 ?>
 <div class="wrap erm-settings-wrap">
 
 	<h1 class="wp-heading-inline">
 		<span class="dashicons dashicons-welcome-learn-more"></span>
-		<?php esc_html_e( 'Education Resources Manager — Settings', 'education-resources-manager' ); ?>
+		<?php esc_html_e( 'Education Resources Manager', 'education-resources-manager' ); ?>
 	</h1>
 
 	<hr class="wp-header-end">
 
-	<!-- Stats cards -->
+	<!-- ── Stats cards ──────────────────────────────────────────────────────── -->
 	<div class="erm-stats-row">
-		<div class="erm-stat-card">
+		<div class="erm-stat-card erm-stat-card--blue">
 			<span class="erm-stat-card__number"><?php echo esc_html( number_format_i18n( $published ) ); ?></span>
 			<span class="erm-stat-card__label"><?php esc_html_e( 'Published Resources', 'education-resources-manager' ); ?></span>
 		</div>
-		<div class="erm-stat-card">
-			<span class="erm-stat-card__number"><?php echo esc_html( number_format_i18n( $total ) ); ?></span>
-			<span class="erm-stat-card__label"><?php esc_html_e( 'Resources with Meta', 'education-resources-manager' ); ?></span>
+		<div class="erm-stat-card erm-stat-card--green">
+			<span class="erm-stat-card__number"><?php echo esc_html( number_format_i18n( $tracking['views'] ) ); ?></span>
+			<span class="erm-stat-card__label"><?php esc_html_e( 'Total Views Tracked', 'education-resources-manager' ); ?></span>
 		</div>
-		<div class="erm-stat-card">
+		<div class="erm-stat-card erm-stat-card--orange">
+			<span class="erm-stat-card__number"><?php echo esc_html( number_format_i18n( $tracking['downloads'] ) ); ?></span>
+			<span class="erm-stat-card__label"><?php esc_html_e( 'Total Downloads Tracked', 'education-resources-manager' ); ?></span>
+		</div>
+		<div class="erm-stat-card erm-stat-card--grey">
 			<span class="erm-stat-card__number"><?php echo esc_html( ERM_VERSION ); ?></span>
 			<span class="erm-stat-card__label"><?php esc_html_e( 'Plugin Version', 'education-resources-manager' ); ?></span>
 		</div>
 	</div>
 
-	<!-- Settings form -->
+	<!-- ── Dashboard row: chart + top resources ─────────────────────────────── -->
+	<div class="erm-dashboard-row">
+
+		<!-- Bar chart: resources created per month -->
+		<div class="erm-dashboard-panel">
+			<h2 class="erm-dashboard-panel__title">
+				<?php esc_html_e( 'Resources Published — Last 6 Months', 'education-resources-manager' ); ?>
+			</h2>
+
+			<div class="erm-chart" role="img" aria-label="<?php esc_attr_e( 'Bar chart: resources published per month', 'education-resources-manager' ); ?>">
+				<?php foreach ( $monthly as $ym => $count ) :
+					$bar_h     = (int) round( ( $count / $count_max ) * $chart_max_h );
+					$bar_h     = max( $bar_h, $count > 0 ? 4 : 0 ); // min visible height when > 0
+					$month_obj = \DateTime::createFromFormat( 'Y-m', $ym );
+					$label     = $month_obj ? $month_obj->format( 'M Y' ) : $ym;
+					?>
+					<div class="erm-chart__col">
+						<span class="erm-chart__count"><?php echo esc_html( $count ); ?></span>
+						<div
+							class="erm-chart__bar<?php echo 0 === $count ? ' erm-chart__bar--empty' : ''; ?>"
+							style="height: <?php echo esc_attr( $bar_h ); ?>px;"
+						></div>
+						<span class="erm-chart__label"><?php echo esc_html( $label ); ?></span>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		</div><!-- /.erm-dashboard-panel -->
+
+		<!-- Top 5 most viewed resources -->
+		<div class="erm-dashboard-panel">
+			<h2 class="erm-dashboard-panel__title">
+				<?php esc_html_e( 'Top 5 Most Viewed Resources', 'education-resources-manager' ); ?>
+			</h2>
+
+			<?php if ( empty( $top_viewed ) ) : ?>
+				<p class="erm-no-data"><?php esc_html_e( 'No view events recorded yet.', 'education-resources-manager' ); ?></p>
+			<?php else : ?>
+				<table class="erm-top-table widefat striped">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'Resource', 'education-resources-manager' ); ?></th>
+							<th class="erm-top-table__count-col"><?php esc_html_e( 'Views', 'education-resources-manager' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $top_viewed as $row ) :
+							$title    = ! empty( $row->post_title ) ? $row->post_title : __( '(no title)', 'education-resources-manager' );
+							$edit_url = get_edit_post_link( (int) $row->resource_id );
+							?>
+							<tr>
+								<td>
+									<?php if ( $edit_url ) : ?>
+										<a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $title ); ?></a>
+									<?php else : ?>
+										<?php echo esc_html( $title ); ?>
+									<?php endif; ?>
+								</td>
+								<td class="erm-top-table__count-col">
+									<strong><?php echo esc_html( number_format_i18n( (int) $row->view_count ) ); ?></strong>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+		</div><!-- /.erm-dashboard-panel -->
+
+	</div><!-- /.erm-dashboard-row -->
+
+	<!-- ── Settings form + sidebar ──────────────────────────────────────────── -->
 	<div class="erm-settings-container">
 		<div class="erm-settings-main">
 			<form id="erm-settings-form" method="post">
@@ -183,4 +266,5 @@ $published    = $post_counts->publish ?? 0;
 			</div>
 		</div><!-- /.erm-settings-sidebar -->
 	</div><!-- /.erm-settings-container -->
+
 </div><!-- /.wrap -->

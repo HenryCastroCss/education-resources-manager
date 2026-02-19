@@ -159,16 +159,15 @@ class Admin {
 			wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'education-resources-manager' ) ], 403 );
 		}
 
-		$db    = new Database();
-		$total = $db->count_resources();
-
-		$post_counts = wp_count_posts( Post_Type::POST_TYPE );
-		$published   = $post_counts->publish ?? 0;
+		$db              = new Database();
+		$post_counts     = wp_count_posts( Post_Type::POST_TYPE );
+		$tracking        = $db->get_tracking_summary();
 
 		wp_send_json_success(
 			[
-				'total_resources'    => $total,
-				'published_resources' => $published,
+				'published_resources' => $post_counts->publish ?? 0,
+				'total_views'         => $tracking['views'],
+				'total_downloads'     => $tracking['downloads'],
 			]
 		);
 	}

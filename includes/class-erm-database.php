@@ -300,6 +300,104 @@ class Database {
 	}
 
 	/**
+	 * Return total view and download counts from the tracking table.
+	 *
+	 * @return array{views: int, downloads: int}
+	 */
+	public function get_tracking_summary(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$row = $wpdb->get_row(
+			"SELECT
+				SUM( action_type = 'view' )     AS views,
+				SUM( action_type = 'download' ) AS downloads
+			FROM `{$this->tracking_table}`"
+		);
+
+		return [
+			'views'     => isset( $row->views )     ? (int) $row->views     : 0,
+			'downloads' => isset( $row->downloads ) ? (int) $row->downloads : 0,
+		];
+	}
+
+	/**
+	 * Return the top N most viewed resources from the tracking table.
+	 *
+	 * @param int $limit Number of results to return (default 5).
+	 * @return array<int, object> Each object has resource_id (int), view_count (int), post_title (string).
+	 */
+	public function get_top_viewed_resources( int $limit = 5 ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT
+					t.resource_id,
+					COUNT(*) AS view_count,
+					p.post_title
+				FROM `{$this->tracking_table}` t
+				LEFT JOIN `{$wpdb->posts}` p ON p.ID = t.resource_id
+				WHERE t.action_type = 'view'
+				GROUP BY t.resource_id, p.post_title
+				ORDER BY view_count DESC
+				LIMIT %d",
+				$limit
+			)
+		);
+
+		return $rows ?: [];
+	}
+
+	/**
+	 * Return published resource counts grouped by month for the last N months.
+	 *
+	 * Missing months are filled in with a count of 0 so the caller always
+	 * receives a complete, ordered array of exactly $months entries.
+	 *
+	 * @param int $months Number of months to look back (default 6).
+	 * @return array<string, int> Keys are 'YYYY-MM' strings, values are counts.
+	 */
+	public function get_resources_per_month( int $months = 6 ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT
+					DATE_FORMAT( post_date, '%%Y-%%m' ) AS month,
+					COUNT(*) AS count
+				FROM `{$wpdb->posts}`
+				WHERE post_type   = %s
+				  AND post_status = 'publish'
+				  AND post_date  >= DATE_SUB( NOW(), INTERVAL %d MONTH )
+				GROUP BY DATE_FORMAT( post_date, '%%Y-%%m' )
+				ORDER BY month ASC",
+				Post_Type::POST_TYPE,
+				$months
+			)
+		);
+
+		// Build a keyed map from the DB result.
+		$db_map = [];
+		if ( $rows ) {
+			foreach ( $rows as $row ) {
+				$db_map[ $row->month ] = (int) $row->count;
+			}
+		}
+
+		// Generate all months in range so none are missing.
+		$result = [];
+		for ( $i = $months - 1; $i >= 0; $i-- ) {
+			$key            = gmdate( 'Y-m', strtotime( "-{$i} months" ) );
+			$result[ $key ] = $db_map[ $key ] ?? 0;
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Map data values to wpdb format strings.
 	 *
 	 * @param array<string, mixed> $data Data to format.
