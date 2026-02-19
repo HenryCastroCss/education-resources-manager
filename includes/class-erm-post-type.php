@@ -30,7 +30,7 @@ class Post_Type {
 	 * @return void
 	 */
 	public function register(): void {
-		add_action( 'init', [ $this, 'register_post_type' ] );
+		$this->register_post_type();
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_boxes' ] );
 		add_action( 'save_post_' . self::POST_TYPE, [ $this, 'save_meta_box' ], 10, 2 );
 	}
