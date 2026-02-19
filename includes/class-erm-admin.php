@@ -44,13 +44,14 @@ class Admin {
 	 * @return void
 	 */
 	public function add_menu_pages(): void {
-		add_submenu_page(
-			'edit.php?post_type=' . Post_Type::POST_TYPE,
-			__( 'ERM Settings', 'education-resources-manager' ),
-			__( 'Settings', 'education-resources-manager' ),
+		add_menu_page(
+			__( 'Education Manager', 'education-resources-manager' ),
+			__( 'Education Manager', 'education-resources-manager' ),
 			'manage_options',
 			self::PAGE_SLUG,
-			[ $this, 'render_settings_page' ]
+			[ $this, 'render_settings_page' ],
+			'dashicons-welcome-learn-more',
+			25
 		);
 	}
 
@@ -62,7 +63,7 @@ class Admin {
 	 */
 	public function enqueue_assets( string $hook_suffix ): void {
 		$allowed_hooks = [
-			'erm_resource_page_' . self::PAGE_SLUG,
+			'toplevel_page_' . self::PAGE_SLUG,
 			'post.php',
 			'post-new.php',
 		];
@@ -181,7 +182,7 @@ class Admin {
 	public function add_action_links( array $links ): array {
 		$settings_link = sprintf(
 			'<a href="%s">%s</a>',
-			esc_url( admin_url( 'edit.php?post_type=' . Post_Type::POST_TYPE . '&page=' . self::PAGE_SLUG ) ),
+			esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ),
 			esc_html__( 'Settings', 'education-resources-manager' )
 		);
 
